@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Kubernetes Cluster Setup Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Minimalist (Light slate background, dark text, blue accents, dark code blocks) -->
+    <!-- Application Structure Plan: A task-oriented SPA with a persistent sidebar for navigation and a main content panel that displays one major setup phase at a time (e.g., Prerequisites, Master Setup). This chunked approach reduces cognitive load compared to a long scrolling document. Users can easily navigate between steps, making it ideal for a multi-machine setup process where they might switch context between setting up the master and worker nodes. -->
+    <!-- Visualization & Content Choices: Report Info: Step-by-step shell commands. Goal: Inform & Instruct. Presentation: Styled <pre><code> blocks for code. Interaction: A 'Copy' button for each code block to streamline the user's workflow and prevent manual copy-paste errors. Justification: This is the most direct and useful interaction for a technical guide, prioritizing efficiency and accuracy. No charts are needed as there is no quantitative data to visualize. Library/Method: Vanilla JS for navigation and clipboard interaction. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        pre, code {
+            font-family: 'Fira Code', monospace;
+        }
+        .nav-link.active {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .code-block {
+            position: relative;
+        }
+        .copy-button {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: #4a5568;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .copy-button:hover {
+            background-color: #2d3748;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <div class="flex flex-col md:flex-row min-h-screen">
+        <aside class="w-full md:w-64 bg-slate-800 text-white p-4 md:sticky md:top-0 md:h-screen">
+            <h1 class="text-xl font-bold mb-6">K8s Setup Guide</h1>
+            <nav id="navigation" class="flex flex-row md:flex-col gap-2">
+                <a href="#" data-target="universal-setup" class="nav-link active px-3 py-2 rounded-md text-sm font-medium transition">Universal Setup</a>
+                <a href="#" data-target="master-only" class="nav-link px-3 py-2 rounded-md text-sm font-medium transition">Master Node</a>
+                <a href="#" data-target="slave-only" class="nav-link px-3 py-2 rounded-md text-sm font-medium transition">Worker Node</a>
+                <a href="#" data-target="verification" class="nav-link px-3 py-2 rounded-md text-sm font-medium transition">Verification</a>
+                <a href="#" data-target="troubleshooting" class="nav-link px-3 py-2 rounded-md text-sm font-medium transition">Troubleshooting</a>
+                <a href="#" data-target="audit" class="nav-link px-3 py-2 rounded-md text-sm font-medium transition">Audit</a>
+            </nav>
+        </aside>
+
+        <main class="flex-1 p-6 md:p-10">
+            
+            <section id="universal-setup" class="content-section space-y-8">
+                <header>
+                    <h2 class="text-3xl font-bold text-slate-900">Universal Node Setup</h2>
+                    <p class="mt-2 text-slate-600">These steps must be performed on all nodes in your cluster, both master and worker nodes. This section covers installing the container runtime and essential Kubernetes components.</p>
+                </header>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">1. Install Containerd <span class="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Master & Worker</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">This script installs containerd, the container runtime Kubernetes will use to manage container lifecycles.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>sudo apt-get update
+sudo apt install apt-transport-https curl -y
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update -y
+sudo apt-get install containerd.io -y
+sudo mkdir -p /etc/containerd
+sudo containerd config default | sudo tee /etc/containerd/config.toml</code></pre>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">2. Configure Containerd for Systemd <span class="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Master & Worker</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Modify the containerd configuration to use the systemdCgroup driver, which is required by kubelet.</p>
+                     <p class="text-sm text-slate-500 mt-1 mb-4">First, open the configuration file:</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>sudo vim /etc/containerd/config.toml</code></pre>
+                    </div>
+                    <p class="text-sm text-slate-500 mt-4 mb-4">Find the line SystemdCgroup = false and change SystemdCgroup to true.</p>
+                     <p class="text-sm text-slate-500 mt-1 mb-4">Then, restart the service:</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>sudo systemctl restart containerd</code></pre>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">3. Install Kubernetes Components <span class="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Master & Worker</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Install `kubelet`, `kubeadm`, and `kubectl` and hold their versions to prevent unintended upgrades.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+sudo systemctl enable --now kubelet</code></pre>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">4. Final Prerequisites <span class="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Master & Worker</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Disable swap and ensure the br_netfilter module is loaded for Kubernetes networking.</p>
+                     <p class="text-sm text-slate-500 mt-1 mb-4">Disable swap:</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>sudo swapoff -a
+# Also comment out the swap line in /etc/fstab to make it permanent</code></pre>
+                    </div>
+                     <p class="text-sm text-slate-500 mt-4 mb-4">Enable kernel modules and settings:</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>sudo modprobe br_netfilter
+sudo sysctl -w net.ipv4.ip_forward=1</code></pre>
+                    </div>
+                </div>
+
+            </section>
+            
+            <section id="master-only" class="content-section hidden space-y-8">
+                <header>
+                    <h2 class="text-3xl font-bold text-slate-900">Master Node Setup</h2>
+                    <p class="mt-2 text-slate-600">These commands are run only on the master node. This section initializes the cluster control plane and sets up networking.</p>
+                </header>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">1. Initialize Cluster <span class="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded-full">Master Only</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Start the Kubernetes control plane. This command will output a kubeadm join command; save it to join worker nodes later.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>sudo kubeadm init --pod-network-cidr=10.244.0.0/16</code></pre>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">2. Configure Kubeconfig & CNI <span class="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded-full">Master Only</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Configure kubectl for the root user and apply the Flannel CNI (Container Network Interface) for pod networking.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml</code></pre>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="slave-only" class="content-section hidden space-y-8">
+                <header>
+                    <h2 class="text-3xl font-bold text-slate-900">Worker Node Setup</h2>
+                    <p class="mt-2 text-slate-600">This command is run only on worker (slave) nodes. It connects the worker to the master's control plane.</p>
+                </header>
+
+                 <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">1. Join the Cluster <span class="text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">Worker Only</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Use the kubeadm join command that was generated during the kubeadm init step on the master node.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code># This is an example command. Use the one from YOUR master node.
+kubeadm join 10.0.0.6:6443 --token 92v88z.22t0ypwhkly8ipc7 --discovery-token-ca-cert-hash sha256:913e4bbd...</code></pre>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="verification" class="content-section hidden space-y-8">
+                <header>
+                    <h2 class="text-3xl font-bold text-slate-900">Cluster Verification</h2>
+                    <p class="mt-2 text-slate-600">After joining all nodes, run these commands on the master node to verify the cluster's health and node status.</p>
+                </header>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">1. Check Node Status <span class="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded-full">Master Only</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Verify that all nodes have joined the cluster and are in a Ready state.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>kubectl get nodes</code></pre>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">2. Check System Pods <span class="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded-full">Master Only</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Ensure all pods in the kube-system namespace (including Flannel) are running correctly.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>kubectl get pods --all-namespaces</code></pre>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="troubleshooting" class="content-section hidden space-y-8">
+                <header>
+                    <h2 class="text-3xl font-bold text-slate-900">Troubleshooting</h2>
+                    <p class="mt-2 text-slate-600">If you encounter networking issues or nodes are not becoming ready, these steps can help resolve common problems.</p>
+                </header>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">1. Fix br_netfilter Issue <span class="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Master & Worker</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">If nodes cannot communicate, explicitly load the kernel module and configure sysctl for bridge-nf-call on all nodes.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>sudo modprobe br_netfilter
+echo 'br_netfilter' | sudo tee /etc/modules-load.d/br_netfilter.conf
+
+sudo tee /etc/sysctl.d/k8s.conf &lt;&lt;EOF
+net.bridge.bridge-nf-call-iptables=1
+net.bridge.bridge-nf-call-ip6tables=1
+net.ipv4.ip_forward=1
+EOF
+
+sudo sysctl --system</code></pre>
+                    </div>
+                </div>
+                 <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">2. Verify Flannel Pods <span class="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded-full">Master Only</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Check the status of Flannel pods specifically to debug networking issues.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>kubectl get pods -n kube-system -l app=flannel -o wide
+kubectl get pods -n kube-flannel -o wide</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="audit" class="content-section hidden space-y-8">
+                <header>
+                    <h2 class="text-3xl font-bold text-slate-900">Cluster Audit with Kubeaudit</h2>
+                    <p class="mt-2 text-slate-600">Use kubeaudit on the master node to scan your cluster for common security vulnerabilities and misconfigurations.</p>
+                </header>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">1. Install Kubeaudit <span class="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded-full">Master Only</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Download and install the kubeaudit binary. Check the <a href="https://github.com/shopify/kubeaudit/releases" target="_blank" class="text-blue-600 hover:underline">official releases page</a> for the latest version.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code># Example for v0.22.2
+wget https://github.com/Shopify/kubeaudit/releases/download/v0.22.2/kubeaudit_0.22.2_linux_amd64.tar.gz
+tar -xvf kubeaudit_0.22.2_linux_amd64.tar.gz
+sudo mv kubeaudit /usr/local/bin/</code></pre>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold flex items-center gap-2">2. Run Audit <span class="text-xs font-medium bg-green-100 text-green-800 px-2 py-1 rounded-full">Master Only</span></h3>
+                    <p class="text-sm text-slate-500 mt-1 mb-4">Execute the audit on all cluster resources.</p>
+                    <div class="code-block bg-slate-900 text-white rounded-md p-4">
+                        <button class="copy-button">Copy</button>
+                        <pre><code>kubeaudit all</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- New Author and Contact Block -->
+            <section id="contact-info" class="space-y-4 mt-10 p-6 bg-slate-200 rounded-lg shadow-inner">
+                <header>
+                    <h2 class="text-xl font-bold text-slate-900">Author & Contact</h2>
+                    <p class="mt-1 text-slate-600 text-sm">This guide was created to simplify Kubernetes setup. Feel free to connect for feedback or collaboration.</p>
+                </header>
+                 <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <h3 class="text-lg font-semibold flex items-center gap-2 text-slate-800">Get in Touch</h3>
+                    <ul class="list-none list-inside space-y-2 mt-2 text-sm text-slate-700">
+                        <li><strong>Name:</strong>Karan Negi</li>
+                        <li><strong>Email:</strong> <a href="mailto:knegi2003@gmail.com" class="text-blue-600 hover:underline">knegi2003@gmail.com</a></li>
+                        <li><strong>GitHub:</strong> <a href="https://github.com/Karan-Negi-12" target="_blank" class="text-blue-600 hover:underline">https://github.com/Karan-Negi-12</a></li>
+                        <li><strong>LinkedIn:</strong> <a href="https://linkedin.com/in/your-profile-handle" target="_blank" class="text-blue-600 hover:underline">https://www.linkedin.com/in/karan-negi-62529022b/</a></li>
+                        <li><strong>Guide Version:</strong> v1.0.1 (October 2025)</li>
+                    </ul>
+                </div>
+            </section>
+
+            
+            <!-- End New Author and Contact Block -->
+
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const navLinks = document.querySelectorAll('#navigation .nav-link');
+            const contentSections = document.querySelectorAll('.content-section');
+            const copyButtons = document.querySelectorAll('.copy-button');
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const targetId = link.getAttribute('data-target');
+
+                    navLinks.forEach(navLink => navLink.classList.remove('active'));
+                    link.classList.add('active');
+
+                    contentSections.forEach(section => {
+                        if (section.id === targetId) {
+                            section.classList.remove('hidden');
+                        } else {
+                            section.classList.add('hidden');
+                        }
+                    });
+                });
+            });
+
+            copyButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const codeBlock = button.nextElementSibling;
+                    const codeText = codeBlock.innerText;
+
+                    const textArea = document.createElement('textarea');
+                    textArea.value = codeText;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        button.textContent = 'Copied!';
+                    } catch (err) {
+                        console.error('Failed to copy text: ', err);
+                        button.textContent = 'Error';
+                    }
+                    document.body.removeChild(textArea);
+                    
+                    setTimeout(() => {
+                        button.textContent = 'Copy';
+                    }, 2000);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
