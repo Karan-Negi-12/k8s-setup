@@ -1,6 +1,11 @@
 # K8s Setup Guide
 
-[Universal Setup](#) [Master Node](#) [Worker Node](#) [Verification](#) [Troubleshooting](#) [Audit](#)
+[Universal Node Setup](#) 
+[Master Node](#) 
+[Worker Node](#) 
+[Verification](#) 
+[Troubleshooting](#) 
+[Audit](#)
 
 ## Universal Node Setup
 
